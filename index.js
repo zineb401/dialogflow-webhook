@@ -22,7 +22,6 @@ async function init() {
 
     console.log("✅ Connexion à MySQL établie");
 
-    // Lancer le serveur seulement si MySQL fonctionne
     const PORT = process.env.PORT || 3000;
     app.listen(PORT, () => {
       console.log(`🚀 Webhook en ligne sur le port ${PORT}`);
@@ -45,7 +44,13 @@ app.post('/webhook', async (req, res) => {
         return res.json({ fulfillmentText: "❌ Base de données indisponible." });
       }
 
-      const [rows] = await pool.query('SELECT name FROM attractions LIMIT 5');
+      const [rows] = await pool.query(`
+        SELECT l.name 
+        FROM attraction a
+        JOIN location l ON a.id_location = l.id_location
+        LIMIT 5
+      `);
+
       const noms = rows.map(r => r.name).join(', ') || "aucune donnée";
 
       return res.json({
