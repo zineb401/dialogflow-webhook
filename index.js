@@ -1,6 +1,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
+const translate = require('@vitalets/google-translate-api'); // ⬅️ Traduction dynamique
 
 const app = express();
 app.use(bodyParser.json());
@@ -33,7 +34,7 @@ async function init() {
   }
 }
 
-// 🔍 Endpoint de test de connexion DB
+// Test DB (facultatif)
 app.get('/test-db', async (req, res) => {
   try {
     const [rows] = await pool.query('SELECT NOW() AS now');
@@ -45,47 +46,95 @@ app.get('/test-db', async (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  // 📩 Log de la requête complète Dialogflow
   console.log("📩 Requête complète Dialogflow :", JSON.stringify(req.body, null, 2));
 
   const intent = req.body.queryResult?.intent?.displayName;
   const userMessage = req.body.queryResult?.queryText?.toLowerCase() || '';
-  console.log("🎯 Intent reçu :", intent);
+  const lang = req.body.queryResult?.languageCode || 'en';
+
+  console.log("🎯 Intent reçu :", intent, '| Langue détectée :', lang);
 
   try {
-    // Condition assouplie pour détecter l’intent "Drâa-Tafilalet"
-    if (intent?.toLowerCase().includes('testdraa')) {
+    // Intent principal : VisiteDrâaTafilalet
+    if (intent?.toLowerCase().includes("visite")) {
       if (!pool) {
         return res.json({ fulfillmentText: "❌ Base de données indisponible." });
       }
 
       const [rows] = await pool.query(`
-        SELECT l.name 
+        SELECT l.name, l.description
         FROM attraction a
         JOIN location l ON a.id_location = l.id_location
         LIMIT 5
       `);
 
-      const noms = rows.map(r => r.name).join(', ') || "aucune donnée";
+      if (rows.length === 0) {
+        return res.json({
+          fulfillmentText: lang === 'fr'
+            ? "Aucune attraction trouvée pour le moment."
+            : "No attractions found at the moment."
+        });
+      }
+
+      const results = [];
+
+      for (const row of rows) {
+        let desc = row.description;
+
+        if (lang === 'fr') {
+          try {
+            const result = await translate(desc, { to: 'fr' });
+            desc = result.text;
+          } catch (err) {
+            console.error("❌ Erreur traduction :", err.message);
+            desc = "[Traduction non disponible]";
+          }
+        }
+
+        results.push(`• ${row.name} : ${description}`);
+      }
+
+      const message = results.join('\n\n');
 
       return res.json({
-        fulfillmentText: `Voici quelques attractions à visiter à Drâa-Tafilalet : ${noms}.`
+        fulfillmentText:
+          lang === 'fr'
+            ? `Voici quelques attractions à visiter à Drâa-Tafilalet :\n\n${message}`
+            : `Here are some attractions to visit in Drâa-Tafilalet:\n\n${message}`
       });
     }
 
+    // Réponses basiques
     if (userMessage.includes('bonjour')) {
-      return res.json({ fulfillmentText: "Bonjour et bienvenue dans notre application !" });
+      return res.json({
+        fulfillmentText: lang === 'fr'
+          ? "Bonjour et bienvenue dans notre application !"
+          : "Hello and welcome to our application!"
+      });
     }
 
     if (userMessage.includes('bonsoir')) {
-      return res.json({ fulfillmentText: "Bonsoir et bienvenue, passez une bonne soirée !" });
+      return res.json({
+        fulfillmentText: lang === 'fr'
+          ? "Bonsoir et bienvenue, passez une bonne soirée !"
+          : "Good evening and welcome! Have a nice evening!"
+      });
     }
 
-    return res.json({ fulfillmentText: "Je n’ai pas compris, pouvez-vous reformuler ?" });
+    // Fallback
+    return res.json({
+      fulfillmentText: lang === 'fr'
+        ? "Je n’ai pas compris, pouvez-vous reformuler ?"
+        : "I didn’t understand, could you please rephrase?"
+    });
 
   } catch (err) {
     console.error("❌ Erreur dans webhook :", err.message);
-    return res.json({ fulfillmentText: "Une erreur est survenue. Veuillez réessayer plus tard." });
+    return res.json({
+      fulfillmentText: lang === 'fr'
+        ? "Une erreur est survenue. Veuillez réessayer plus tard."
+        : "An error occurred. Please try again later."
+    });
   }
 });
 
