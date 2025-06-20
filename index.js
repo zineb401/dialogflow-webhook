@@ -1,7 +1,9 @@
+// index.js complet : webhook Dialogflow intelligent avec images, types, traduction et cards enrichies
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
-const translate = require('@vitalets/google-translate-api'); // ⬅️ Traduction dynamique
+const translate = require('@vitalets/google-translate-api');
 
 const app = express();
 app.use(bodyParser.json());
@@ -34,77 +36,95 @@ async function init() {
   }
 }
 
-// Test DB (facultatif)
-app.get('/test-db', async (req, res) => {
-  try {
-    const [rows] = await pool.query('SELECT NOW() AS now');
-    res.send(`✅ Connexion réussie. Heure du serveur : ${rows[0].now}`);
-  } catch (err) {
-    console.error("❌ Erreur de test DB :", err.message);
-    res.status(500).send("Erreur de connexion DB");
-  }
-});
-
 app.post('/webhook', async (req, res) => {
-  console.log("📩 Requête complète Dialogflow :", JSON.stringify(req.body, null, 2));
-
   const intent = req.body.queryResult?.intent?.displayName;
   const userMessage = req.body.queryResult?.queryText?.toLowerCase() || '';
   const lang = req.body.queryResult?.languageCode || 'en';
 
-  console.log("🎯 Intent reçu :", intent, '| Langue détectée :', lang);
-
   try {
-    // Intent principal : VisiteDrâaTafilalet
-    if (intent?.toLowerCase().includes("visite")) {
-      if (!pool) {
-        return res.json({ fulfillmentText: "❌ Base de données indisponible." });
-      }
+    if (intent?.toLowerCase().includes('visite')) {
+      return res.json({
+        fulfillmentText:
+          lang === 'fr'
+            ? "Souhaitez-vous découvrir des sites historiques, naturels, culturels ou bien tous ?"
+            : "Would you like to discover historical, natural, cultural sites, or all of them?",
+        outputContexts: [
+          {
+            name: `${req.body.session}/contexts/attente_type_attraction`,
+            lifespanCount: 2
+          }
+        ]
+      });
+    }
 
-      const [rows] = await pool.query(`
-        SELECT l.name, l.description
+    if (intent === 'ChoixTypeAttraction') {
+      let type = '';
+      if (userMessage.includes('historique') || userMessage.includes('historical')) type = 'historical';
+      else if (userMessage.includes('naturel') || userMessage.includes('natural')) type = 'natural';
+      else if (userMessage.includes('culturel') || userMessage.includes('cultural')) type = 'cultural';
+      else if (userMessage.includes('tous') || userMessage.includes('all')) type = 'all';
+
+      let sql = `
+        SELECT l.name, l.description, a.type, i.url
         FROM attraction a
         JOIN location l ON a.id_location = l.id_location
-        LIMIT 5
-      `);
+        LEFT JOIN image i ON i.id_location = l.id_location
+      `;
+      const params = [];
+      if (type !== 'all') {
+        sql += ' WHERE a.type = ?';
+        params.push(type);
+      }
+      sql += ' GROUP BY l.id_location LIMIT 3';
+
+      const [rows] = await pool.query(sql, params);
 
       if (rows.length === 0) {
         return res.json({
-          fulfillmentText: lang === 'fr'
-            ? "Aucune attraction trouvée pour le moment."
-            : "No attractions found at the moment."
+          fulfillmentText: lang === 'fr' ? "Aucune attraction trouvée." : "No attractions found."
         });
       }
 
-      const results = [];
+      const messages = [];
+      const cards = [];
 
       for (const row of rows) {
         let desc = row.description;
-
         if (lang === 'fr') {
           try {
             const result = await translate(desc, { to: 'fr' });
             desc = result.text;
-          } catch (err) {
-            console.error("❌ Erreur traduction :", err.message);
-            desc = "[Traduction non disponible]";
+          } catch {
+            desc = '[Traduction indisponible]';
           }
         }
 
-        results.push(`• ${row.name} : ${description}`);
-      }
+        messages.push(`• ${row.name} : ${desc}`);
 
-      const message = results.join('\n\n');
+        cards.push({
+          card: {
+            title: row.name,
+            subtitle: desc.length > 80 ? desc.substring(0, 77) + '...' : desc,
+            imageUri: row.url || '',
+            buttons: [
+              {
+                text: lang === 'fr' ? "Voir plus" : "More info",
+                postback: row.url || 'https://example.com'
+              }
+            ]
+          }
+        });
+      }
 
       return res.json({
         fulfillmentText:
           lang === 'fr'
-            ? `Voici quelques attractions à visiter à Drâa-Tafilalet :\n\n${message}`
-            : `Here are some attractions to visit in Drâa-Tafilalet:\n\n${message}`
+            ? `Voici quelques attractions :\n\n${messages.join('\n\n')}`
+            : `Here are some attractions:\n\n${messages.join('\n\n')}`,
+        fulfillmentMessages: cards
       });
     }
 
-    // Réponses basiques
     if (userMessage.includes('bonjour')) {
       return res.json({
         fulfillmentText: lang === 'fr'
@@ -117,11 +137,10 @@ app.post('/webhook', async (req, res) => {
       return res.json({
         fulfillmentText: lang === 'fr'
           ? "Bonsoir et bienvenue, passez une bonne soirée !"
-          : "Good evening and welcome! Have a nice evening!"
+          : "Good evening and welcome!"
       });
     }
 
-    // Fallback
     return res.json({
       fulfillmentText: lang === 'fr'
         ? "Je n’ai pas compris, pouvez-vous reformuler ?"
@@ -129,7 +148,7 @@ app.post('/webhook', async (req, res) => {
     });
 
   } catch (err) {
-    console.error("❌ Erreur dans webhook :", err.message);
+    console.error("❌ Erreur Webhook :", err.message);
     return res.json({
       fulfillmentText: lang === 'fr'
         ? "Une erreur est survenue. Veuillez réessayer plus tard."
