@@ -54,7 +54,7 @@ app.post('/webhook', async (req, res) => {
 
   try {
     // Condition assouplie pour détecter l’intent "Drâa-Tafilalet"
-    if (intent?.toLowerCase().includes('draa')) {
+    if (intent?.toLowerCase().includes('testdraa')) {
       if (!pool) {
         return res.json({ fulfillmentText: "❌ Base de données indisponible." });
       }
