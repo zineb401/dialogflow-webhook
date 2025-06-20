@@ -33,13 +33,28 @@ async function init() {
   }
 }
 
+// 🔍 Endpoint de test de connexion DB
+app.get('/test-db', async (req, res) => {
+  try {
+    const [rows] = await pool.query('SELECT NOW() AS now');
+    res.send(`✅ Connexion réussie. Heure du serveur : ${rows[0].now}`);
+  } catch (err) {
+    console.error("❌ Erreur de test DB :", err.message);
+    res.status(500).send("Erreur de connexion DB");
+  }
+});
+
 app.post('/webhook', async (req, res) => {
+  // 📩 Log de la requête complète Dialogflow
+  console.log("📩 Requête complète Dialogflow :", JSON.stringify(req.body, null, 2));
+
   const intent = req.body.queryResult?.intent?.displayName;
   const userMessage = req.body.queryResult?.queryText?.toLowerCase() || '';
   console.log("🎯 Intent reçu :", intent);
 
   try {
-    if (intent === 'VisiteDrâaTafilalet') {
+    // Condition assouplie pour détecter l’intent "Drâa-Tafilalet"
+    if (intent?.toLowerCase().includes('draa')) {
       if (!pool) {
         return res.json({ fulfillmentText: "❌ Base de données indisponible." });
       }
