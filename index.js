@@ -111,7 +111,7 @@ app.post('/webhook', async (req, res) => {
           card: {
             title: row.name,
             subtitle: desc.length > 80 ? desc.substring(0, 77) + '...' : desc,
-            imageUri: row.url || '',
+            imageUri: row.image_url || '',
             buttons: [
               {
                 text: lang === 'fr' ? "Voir plus" : "More info",
