@@ -78,7 +78,7 @@ app.post('/webhook', async (req, res) => {
         SELECT l.name, l.description, i.image_url
         FROM ${table} a
         JOIN location l ON a.id_location = l.id_location
-        LEFT JOIN image i ON i.id_location = l.id_location
+        LEFT JOIN image i ON i.location_id = l.id_location
         GROUP BY l.id_location
         LIMIT 3;
       `;
