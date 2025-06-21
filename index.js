@@ -1,4 +1,4 @@
-// index.js complet mis à jour pour base avec classes filles au lieu d'un champ 'type'
+// index.js nettoyé sans l’ajout des images
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -62,8 +62,7 @@ app.post('/webhook', async (req, res) => {
       if (userMessage.includes('historique') || userMessage.includes('historical')) table = 'historical_attraction';
       else if (userMessage.includes('naturel') || userMessage.includes('natural')) table = 'natural_attraction';
       else if (userMessage.includes('culturel') || userMessage.includes('cultural')) table = 'cultural_attraction';
-      else if (userMessage.includes('artificial') || userMessage.includes('artificial')) table = 'artificial_attraction';
-
+      else if (userMessage.includes('artificial')) table = 'artificial_attraction';
       else if (userMessage.includes('tous') || userMessage.includes('all')) table = 'attraction';
 
       if (!table) {
@@ -75,10 +74,9 @@ app.post('/webhook', async (req, res) => {
       }
 
       const sql = `
-        SELECT l.name, l.description, i.image_url
+        SELECT l.name, l.description
         FROM ${table} a
         JOIN location l ON a.id_location = l.id_location
-        LEFT JOIN image i ON i.location_id = l.id_location
         GROUP BY l.id_location
         LIMIT 3;
       `;
@@ -92,8 +90,6 @@ app.post('/webhook', async (req, res) => {
       }
 
       const messages = [];
-      const cards = [];
-
       for (const row of rows) {
         let desc = row.description;
         if (lang === 'fr') {
@@ -104,30 +100,14 @@ app.post('/webhook', async (req, res) => {
             desc = '[Traduction indisponible]';
           }
         }
-
         messages.push(`• ${row.name} : ${desc}`);
-
-        cards.push({
-          card: {
-            title: row.name,
-            subtitle: desc.length > 80 ? desc.substring(0, 77) + '...' : desc,
-            imageUri: row.image_url || '',
-            buttons: [
-              {
-                text: lang === 'fr' ? "Voir plus" : "More info",
-                postback: row.url || 'https://example.com'
-              }
-            ]
-          }
-        });
       }
 
       return res.json({
         fulfillmentText:
           lang === 'fr'
             ? `Voici quelques attractions :\n\n${messages.join('\n\n')}`
-            : `Here are some attractions:\n\n${messages.join('\n\n')}`,
-        fulfillmentMessages: cards
+            : `Here are some attractions:\n\n${messages.join('\n\n')}`
       });
     }
 
