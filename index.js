@@ -1,4 +1,4 @@
-// index.js complet : webhook Dialogflow intelligent avec images, types, traduction et cards enrichies
+// index.js complet mis à jour pour base avec classes filles au lieu d'un champ 'type'
 
 const express = require('express');
 const bodyParser = require('body-parser');
@@ -58,26 +58,32 @@ app.post('/webhook', async (req, res) => {
     }
 
     if (intent === 'ChoixTypeAttraction') {
-      let type = '';
-      if (userMessage.includes('historique') || userMessage.includes('historical')) type = 'historical';
-      else if (userMessage.includes('naturel') || userMessage.includes('natural')) type = 'natural';
-      else if (userMessage.includes('culturel') || userMessage.includes('cultural')) type = 'cultural';
-      else if (userMessage.includes('tous') || userMessage.includes('all')) type = 'all';
+      let table = '';
+      if (userMessage.includes('historique') || userMessage.includes('historical')) table = 'historical_attraction';
+      else if (userMessage.includes('naturel') || userMessage.includes('natural')) table = 'natural_attraction';
+      else if (userMessage.includes('culturel') || userMessage.includes('cultural')) table = 'cultural_attraction';
+      else if (userMessage.includes('artificial') || userMessage.includes('artificial')) table = 'artificial_attraction';
 
-      let sql = `
-        SELECT l.name, l.description, a.type, i.url
-        FROM attraction a
+      else if (userMessage.includes('tous') || userMessage.includes('all')) table = 'attraction';
+
+      if (!table) {
+        return res.json({
+          fulfillmentText: lang === 'fr'
+            ? "Merci de préciser un type valide : historique, naturel, culturel ou tous."
+            : "Please specify a valid type: historical, natural, cultural or all."
+        });
+      }
+
+      const sql = `
+        SELECT l.name, l.description, i.url
+        FROM ${table} a
         JOIN location l ON a.id_location = l.id_location
         LEFT JOIN image i ON i.id_location = l.id_location
+        GROUP BY l.id_location
+        LIMIT 3;
       `;
-      const params = [];
-      if (type !== 'all') {
-        sql += ' WHERE a.type = ?';
-        params.push(type);
-      }
-      sql += ' GROUP BY l.id_location LIMIT 3';
 
-      const [rows] = await pool.query(sql, params);
+      const [rows] = await pool.query(sql);
 
       if (rows.length === 0) {
         return res.json({
