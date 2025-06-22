@@ -1,5 +1,3 @@
-// index.js nettoyé sans l’ajout des images
-
 const express = require('express');
 const bodyParser = require('body-parser');
 const mysql = require('mysql2/promise');
@@ -62,7 +60,7 @@ app.post('/webhook', async (req, res) => {
       if (userMessage.includes('historique') || userMessage.includes('historical')) table = 'historical_attraction';
       else if (userMessage.includes('naturel') || userMessage.includes('natural')) table = 'natural_attraction';
       else if (userMessage.includes('culturel') || userMessage.includes('cultural')) table = 'cultural_attraction';
-      else if (userMessage.includes('artificial')) table = 'artificial_attraction';
+      else if (userMessage.includes('artificiel') || userMessage.includes('artificial')) table = 'artificial_attraction';
       else if (userMessage.includes('tous') || userMessage.includes('all')) table = 'attraction';
 
       if (!table) {
