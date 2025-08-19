@@ -7,7 +7,7 @@ const app = express();
 app.use(bodyParser.json());
 
 // URL du backend Spring Boot déployé sur Render
-const SPRING_BOOT_API = "https://touristeproject.onrender.com/api";
+const SPRING_BOOT_API = "https://touristeproject.onrender.com/api/public";
 
 // ✅ Webhook pour Dialogflow
 app.post("/webhook", async (req, res) => {
